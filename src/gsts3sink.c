@@ -797,7 +797,7 @@ gst_s3_sink_do_flush (GstS3Sink * sink)
           sink->config.bucket,
           sink->config.key,
           sink->current_pos,
-          sink->upload_size
+          sink->upload_size - 1
         );
       }
     }
@@ -849,7 +849,7 @@ gst_s3_sink_do_seek (GstS3Sink * sink, guint64 new_offset)
         sink->config.bucket,
         sink->config.key,
         0,
-        new_pos
+        new_pos - 1
       );
 
       if (!res) {
