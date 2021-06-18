@@ -18,6 +18,8 @@
  */
 #include "gstawscredentials.hpp"
 
+#include "gstawsutils.hpp"
+
 #include <gst/gst.h>
 
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
@@ -74,12 +76,6 @@ static bool
 strings_equal(const gchar* str1, const gchar* str2, size_t len2)
 {
 	return strlen(str1) == len2 && strncmp(str1, str2, len2) == 0;
-}
-
-static bool
-is_null_or_empty(const char* str)
-{
-  return str == NULL || strcmp(str, "") == 0;
 }
 
 static std::unique_ptr<AWSCredentialsProvider>

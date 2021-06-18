@@ -9,8 +9,17 @@ gst_s3_public_headers = [
   'gstawscredentials.hpp'
 ]
 
+aws_utils = static_library('awsutils', [
+    'gstawsapihandle.cpp',
+    'gstawsutils.cpp'
+  ],
+  dependencies : [aws_cpp_sdk_s3_dep, gst_dep],
+  install : false
+)
+
 credentials = library('gstawscredentials-@0@'.format(apiversion),
   ['gstawscredentials.cpp'],
+  link_with: aws_utils,
   dependencies : [aws_cpp_sdk_sts_dep, gst_dep],
   install : true
 )
@@ -19,11 +28,18 @@ credentials_dep = declare_dependency(link_with : credentials,
   include_directories : [include_directories('.')]
 )
 
+downloader = static_library('downloader', [
+    'gsts3downloader.cpp'
+  ],
+  link_with : aws_utils,
+  dependencies : [aws_cpp_sdk_s3_dep, gst_dep],
+  install : false
+)
+
 multipart_uploader = static_library('multipartuploader', [
-    'gstawsapihandle.cpp',
-    'gsts3downloader.cpp',
     'gsts3multipartuploader.cpp'
   ],
+  link_with: [aws_utils, downloader],
   dependencies : [aws_cpp_sdk_s3_dep, gst_dep],
   install : false
 )
