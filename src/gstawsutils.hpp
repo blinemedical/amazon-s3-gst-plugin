@@ -1,5 +1,5 @@
 /* amazon-s3-gst-plugin
- * Copyright (C) 2019 Amazon <mkolny@amazon.com>
+ * Copyright (C) 2021 Laerdal Labs, DC
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,29 +17,15 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include "config.h"
+#ifndef __GST_AWS_UTILS_HPP__
+#define __GST_AWS_UTILS_HPP__
 
-#include <gst/gst.h>
+#include <aws/core/client/ClientConfiguration.h>
 
-#include "gsts3sink.h"
+bool get_bucket_location   (const char* bucket_name,
+                            const Aws::Client::ClientConfiguration& client_config,
+                            Aws::String& location);
 
-GST_DEBUG_CATEGORY(gst_aws_s3_debug);
+bool is_null_or_empty  (const char* str);
 
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  if (!gst_element_register (plugin, "s3sink", GST_RANK_NONE,
-          gst_s3_sink_get_type ()))
-    return FALSE;
-
-  GST_DEBUG_CATEGORY_INIT(gst_aws_s3_debug, "aws-s3", 0, "AWS S3");
-
-  return TRUE;
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    s3elements,
-    "Amazon S3 elements",
-    plugin_init,
-    VERSION, "LGPL", "GStreamer S3 package", "https://www.amazon.com")
+#endif // __GST_AWS_UTILS_HPP__
