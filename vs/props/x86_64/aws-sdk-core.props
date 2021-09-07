@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <AwsSdkCoreImported>true</AwsSdkCoreImported>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>USE_IMPORT_EXPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(AWS_SDK_ROOT_MSVC_X86_64)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(AWS_SDK_ROOT_MSVC_X86_64)\bin;$(AWS_SDK_ROOT_MSVC_X86_64)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>aws-cpp-sdk-core.lib;aws-c-common.lib;aws-c-event-stream.lib;aws-checksums.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>aws-cpp-sdk-core.lib;aws-c-common.lib;aws-c-event-stream.lib;aws-checksums.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(AWS_SDK_ROOT_MSVC_X86_64)\bin;$(AWS_SDK_ROOT_MSVC_X86_64)\lib;$(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
