@@ -26,7 +26,9 @@
 
 #include <gst/gst.h>
 
-GST_DEBUG_CATEGORY_EXTERN(gst_aws_s3_debug);
+extern "C" {
+    GST_DEBUG_CATEGORY_EXTERN(gst_aws_s3_debug);
+}
 
 namespace gst {
 namespace aws {
