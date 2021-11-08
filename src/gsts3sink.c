@@ -480,8 +480,15 @@ gst_s3_sink_start (GstBaseSink * basesink)
   sink->buffer_size = sink->buffer_pos = 0;
   sink->upload_size = sink->current_pos = 0;
 
-  GST_DEBUG_OBJECT (sink, "started S3 upload %s %s",
+  if ( gst_s3_sink_is_null_or_empty (sink->config.location) )
+  {
+    GST_DEBUG_OBJECT (sink, "started S3 upload %s %s",
       sink->config.bucket, sink->config.key);
+  }
+  else
+  {
+    GST_DEBUG_OBJECT (sink, "started S3 upload %s", sink->config.location);
+  }
 
   sink->is_started = TRUE;
 
