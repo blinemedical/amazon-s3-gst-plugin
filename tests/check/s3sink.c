@@ -58,6 +58,21 @@ test_uploader_upload_part (GstS3Uploader * uploader, G_GNUC_UNUSED const gchar *
 }
 
 static gboolean
+test_uploader_upload_part_copy (GstS3Uploader * uploader, G_GNUC_UNUSED const gchar * bucket,
+  G_GNUC_UNUSED const gchar * key, G_GNUC_UNUSED gsize first, G_GNUC_UNUSED gsize last)
+{
+  gboolean ok = TEST_UPLOADER(uploader)->fail_upload_retry != 0;
+
+  TEST_UPLOADER(uploader)->upload_part_count++;
+
+  if (ok) {
+    TEST_UPLOADER(uploader)->fail_upload_retry--;
+  }
+
+  return ok;
+}
+
+static gboolean
 test_uploader_complete (GstS3Uploader * uploader)
 {
   return !TEST_UPLOADER(uploader)->fail_complete;
@@ -66,6 +81,7 @@ test_uploader_complete (GstS3Uploader * uploader)
 static GstS3UploaderClass test_uploader_class = {
   test_uploader_destroy,
   test_uploader_upload_part,
+  test_uploader_upload_part_copy,
   test_uploader_complete
 };
 
@@ -144,6 +160,37 @@ GST_START_TEST (test_no_bucket_and_key_then_start_should_fail)
 
   gst_element_set_state (sink, GST_STATE_NULL);
   gst_object_unref (sink);
+}
+GST_END_TEST
+
+GST_START_TEST (test_location_property)
+{
+  GstElement *sink = gst_element_factory_make ("s3sink", "sink");
+  const gchar *location = "s3://bucket/key";
+
+  gchar *returned_location = NULL;
+
+  fail_if (sink == NULL);
+
+  // Set location, then set bucket and key, verify location is used
+  g_object_set (sink, "location", location, NULL);
+  g_object_set (sink,
+    "bucket", "new-bucket",
+    "key", "new-key",
+    NULL);
+  g_object_get (sink, "location", &returned_location, NULL);
+  fail_if (0 != g_ascii_strcasecmp(location, returned_location));
+  g_free (returned_location);
+
+  gst_object_unref (sink);
+}
+GST_END_TEST
+
+GST_START_TEST (test_gst_urihandler_interface)
+{
+  GstElement *s3Sink = gst_element_make_from_uri(GST_URI_SINK, "s3://bucket/key", "s3sink", NULL);
+  fail_if(NULL == s3Sink);
+  gst_object_unref(s3Sink);
 }
 GST_END_TEST
 
@@ -388,6 +435,8 @@ s3sink_suite (void)
 
   suite_add_tcase (s, tc_chain);
   tcase_add_test (tc_chain, test_no_bucket_and_key_then_start_should_fail);
+  tcase_add_test (tc_chain, test_location_property);
+  tcase_add_test (tc_chain, test_gst_urihandler_interface);
   tcase_add_test (tc_chain, test_change_properties_after_start_should_fail);
   tcase_add_test (tc_chain, test_send_eos_should_flush_buffer);
   tcase_add_test (tc_chain, test_push_buffer_should_flush_buffer_if_reaches_limit);

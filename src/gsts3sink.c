@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include <gst/gst.h>
+#include <gst/gsturi.h>
 
 #include "gsts3sink.h"
 #include "gsts3multipartuploader.h"
@@ -52,11 +53,14 @@ GST_DEBUG_CATEGORY (gst_s3_sink_debug);
 #define DEFAULT_BUFFER_SIZE GST_S3_UPLOADER_CONFIG_DEFAULT_BUFFER_SIZE
 #define DEFAULT_BUFFER_COUNT GST_S3_UPLOADER_CONFIG_DEFAULT_BUFFER_COUNT
 
+#define REQUIRED_BUT_UNUSED(x) (void)(x)
+
 enum
 {
   PROP_0,
   PROP_BUCKET,
   PROP_KEY,
+  PROP_LOCATION,
   PROP_ACL,
   PROP_CONTENT_TYPE,
   PROP_CA_FILE,
@@ -85,13 +89,59 @@ static GstFlowReturn gst_s3_sink_render (GstBaseSink * sink,
     GstBuffer * buffer);
 static gboolean gst_s3_sink_query (GstBaseSink * bsink, GstQuery * query);
 
+static gboolean gst_s3_sink_do_flush (GstS3Sink * sink);
+static gboolean gst_s3_sink_do_seek (GstS3Sink * sink, guint64 new_offset);
 static gboolean gst_s3_sink_fill_buffer (GstS3Sink * sink, GstBuffer * buffer);
 static gboolean gst_s3_sink_flush_buffer (GstS3Sink * sink);
 
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_s3_sink_debug, "s3sink", 0, "s3sink element");
+/**
+ * GstURIHandler Interface implementation
+ */
+static GstURIType
+gst_s3_sink_urihandler_get_type (GType type)
+{
+  REQUIRED_BUT_UNUSED(type);
+  return GST_URI_SINK;
+}
+
+static const gchar * const*
+gst_s3_sink_urihandler_get_protocols (GType type)
+{
+  REQUIRED_BUT_UNUSED(type);
+  static const gchar *protocols[] = { "s3", NULL};
+  return protocols;
+}
+
+static gchar *
+gst_s3_sink_urihandler_get_uri (GstURIHandler * handler)
+{
+  GValue value = {0};
+  g_object_get_property( G_OBJECT(handler), "location", &value);
+  return g_strdup_value_contents(&value);
+}
+
+static gboolean
+gst_s3_sink_urihandler_set_uri (GstURIHandler * handler, const gchar * uri, GError **error)
+{
+  REQUIRED_BUT_UNUSED(error);
+  g_object_set( G_OBJECT(handler), "location", uri, NULL);
+  return TRUE;
+}
+
+static void
+gst_s3_sink_urihandler_init (gpointer g_iface, gpointer iface_data)
+{
+  REQUIRED_BUT_UNUSED(iface_data);
+  GstURIHandlerInterface *iface = (GstURIHandlerInterface *) g_iface;
+  iface->get_type      = gst_s3_sink_urihandler_get_type;
+  iface->get_protocols = gst_s3_sink_urihandler_get_protocols;
+  iface->get_uri       = gst_s3_sink_urihandler_get_uri;
+  iface->set_uri       = gst_s3_sink_urihandler_set_uri;
+}
+
 #define gst_s3_sink_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstS3Sink, gst_s3_sink, GST_TYPE_BASE_SINK, _do_init)
+G_DEFINE_TYPE_WITH_CODE (GstS3Sink, gst_s3_sink, GST_TYPE_BASE_SINK,
+  G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_s3_sink_urihandler_init));
 
 static void
 gst_s3_sink_class_init (GstS3SinkClass * klass)
@@ -100,18 +150,25 @@ gst_s3_sink_class_init (GstS3SinkClass * klass)
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
 
+  GST_DEBUG_CATEGORY_INIT (gst_s3_sink_debug, "s3sink", 0, "s3sink element");
+
   gobject_class->dispose = gst_s3_sink_dispose;
   gobject_class->set_property = gst_s3_sink_set_property;
   gobject_class->get_property = gst_s3_sink_get_property;
 
   g_object_class_install_property (gobject_class, PROP_BUCKET,
       g_param_spec_string ("bucket", "S3 bucket",
-          "The bucket of the file to write", NULL,
+          "The bucket of the file to write (ignored when 'location' is set)", NULL,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_KEY,
       g_param_spec_string ("key", "S3 key",
-          "The key of the file to write", NULL,
+          "The key of the file to write (ignored when 'location' is set)", NULL,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_LOCATION,
+      g_param_spec_string ("location", "S3 URI",
+          "The URI of the file to write", NULL,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_ACL,
@@ -197,12 +254,21 @@ gst_s3_destroy_uploader (GstS3Sink * sink)
   }
 }
 
+static void gst_s3_destroy_downloader (GstS3Sink * sink)
+{
+  if (sink->downloader) {
+    gst_s3_downloader_free (sink->downloader);
+    sink->downloader = NULL;
+  }
+}
+
 static void
 gst_s3_sink_init (GstS3Sink * s3sink)
 {
   s3sink->config = GST_S3_UPLOADER_CONFIG_INIT;
   s3sink->config.credentials = gst_aws_credentials_new_default ();
   s3sink->uploader = NULL;
+  s3sink->downloader = NULL;
   s3sink->is_started = FALSE;
 
   gst_base_sink_set_sync (GST_BASE_SINK (s3sink), FALSE);
@@ -214,6 +280,7 @@ gst_s3_sink_release_config (GstS3UploaderConfig * config)
   g_free (config->region);
   g_free (config->bucket);
   g_free (config->key);
+  g_free (config->location);
   g_free (config->acl);
   g_free (config->content_type);
   g_free (config->ca_file);
@@ -228,9 +295,10 @@ gst_s3_sink_dispose (GObject * object)
 {
   GstS3Sink *sink = GST_S3_SINK (object);
 
-  gst_s3_sink_release_config (&sink->config);
-
   gst_s3_destroy_uploader (sink);
+  gst_s3_destroy_downloader (sink);
+
+  gst_s3_sink_release_config (&sink->config);
 
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
@@ -269,6 +337,10 @@ gst_s3_sink_set_property (GObject * object, guint prop_id,
     case PROP_KEY:
       gst_s3_sink_set_string_property (sink, g_value_get_string (value),
           &sink->config.key, "key");
+      break;
+    case PROP_LOCATION:
+      gst_s3_sink_set_string_property (sink, g_value_get_string (value),
+          &sink->config.location, "location");
       break;
     case PROP_ACL:
       gst_s3_sink_set_string_property (sink, g_value_get_string (value),
@@ -335,6 +407,9 @@ gst_s3_sink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_KEY:
       g_value_set_string (value, sink->config.key);
       break;
+    case PROP_LOCATION:
+      g_value_set_string (value, sink->config.location);
+      break;
     case PROP_ACL:
       g_value_set_string (value, sink->config.acl);
       break;
@@ -382,12 +457,17 @@ gst_s3_sink_start (GstBaseSink * basesink)
 {
   GstS3Sink *sink = GST_S3_SINK (basesink);
 
-  if (gst_s3_sink_is_null_or_empty (sink->config.bucket)
-      || gst_s3_sink_is_null_or_empty (sink->config.key))
+  if (gst_s3_sink_is_null_or_empty (sink->config.location) && (
+      gst_s3_sink_is_null_or_empty (sink->config.bucket)
+      || gst_s3_sink_is_null_or_empty (sink->config.key)))
     goto no_destination;
 
   if (sink->uploader == NULL) {
     sink->uploader = gst_s3_multipart_uploader_new (&sink->config);
+  }
+
+  if (sink->downloader == NULL) {
+    sink->downloader = gst_s3_downloader_new (&sink->config);
   }
 
   if (!sink->uploader)
@@ -397,11 +477,18 @@ gst_s3_sink_start (GstBaseSink * basesink)
   sink->buffer = NULL;
 
   sink->buffer = g_malloc (sink->config.buffer_size);
-  sink->current_buffer_size = 0;
-  sink->total_bytes_written = 0;
+  sink->buffer_size = sink->buffer_pos = 0;
+  sink->upload_size = sink->current_pos = 0;
 
-  GST_DEBUG_OBJECT (sink, "started S3 upload %s %s",
+  if ( gst_s3_sink_is_null_or_empty (sink->config.location) )
+  {
+    GST_DEBUG_OBJECT (sink, "started S3 upload %s %s",
       sink->config.bucket, sink->config.key);
+  }
+  else
+  {
+    GST_DEBUG_OBJECT (sink, "started S3 upload %s", sink->config.location);
+  }
 
   sink->is_started = TRUE;
 
@@ -418,6 +505,7 @@ no_destination:
 init_failed:
   {
     gst_s3_destroy_uploader (sink);
+    gst_s3_destroy_downloader (sink);
     GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
         ("Unable to initialize S3 uploader."), (NULL));
     return FALSE;
@@ -430,17 +518,11 @@ gst_s3_sink_stop (GstBaseSink * basesink)
   GstS3Sink *sink = GST_S3_SINK (basesink);
   gboolean ret = TRUE;
 
+  gst_s3_sink_do_flush (sink);
   if (sink->buffer) {
-    gst_s3_sink_flush_buffer (sink);
-    ret = gst_s3_uploader_complete (sink->uploader);
-
     g_free (sink->buffer);
     sink->buffer = NULL;
-    sink->current_buffer_size = 0;
-    sink->total_bytes_written = 0;
   }
-
-  gst_s3_destroy_uploader (sink);
 
   sink->is_started = FALSE;
 
@@ -471,7 +553,7 @@ gst_s3_sink_query (GstBaseSink * base_sink, GstQuery * query)
         case GST_FORMAT_DEFAULT:
         case GST_FORMAT_BYTES:
           gst_query_set_position (query, GST_FORMAT_BYTES,
-              sink->total_bytes_written);
+              sink->current_pos);
           ret = TRUE;
           break;
         default:
@@ -484,7 +566,11 @@ gst_s3_sink_query (GstBaseSink * base_sink, GstQuery * query)
       GstFormat fmt;
 
       gst_query_parse_seeking (query, &fmt, NULL, NULL, NULL);
-      gst_query_set_seeking (query, fmt, FALSE, 0, -1);
+      if (fmt == GST_FORMAT_BYTES || fmt == GST_FORMAT_DEFAULT) {
+        gst_query_set_seeking (query, GST_FORMAT_BYTES, TRUE, 0, -1);
+      } else {
+        gst_query_set_seeking (query, fmt, FALSE, 0, -1);
+      }
       ret = TRUE;
       break;
     }
@@ -505,14 +591,43 @@ gst_s3_sink_event (GstBaseSink * base_sink, GstEvent * event)
   type = GST_EVENT_TYPE (event);
 
   switch (type) {
+    case GST_EVENT_SEGMENT:{
+      const GstSegment *segment;
+
+      gst_event_parse_segment (event, &segment);
+
+      if (segment->format == GST_FORMAT_BYTES) {
+        if (sink->current_pos != segment->start) {
+          if (!gst_s3_sink_do_seek(sink, segment->start))
+            goto seek_failed;
+        }
+      } else {
+        GST_WARNING_OBJECT (sink,
+            "Ignored SEGMENT event of format %u (%s)", (guint) segment->format,
+            gst_format_get_name (segment->format));
+      }
+      break;
+    }
+    case GST_EVENT_FLUSH_STOP:
+      //TODO: truncate to 0 bytes (is this necessary?)
+      break;
     case GST_EVENT_EOS:
-      gst_s3_sink_flush_buffer (sink);
+      gst_s3_sink_do_flush (sink);
       break;
     default:
       break;
   }
 
   return GST_BASE_SINK_CLASS (parent_class)->event (base_sink, event);
+
+  seek_failed:
+    {
+      GST_ELEMENT_ERROR (sink, RESOURCE, SEEK,
+          (("Error while seeking S3 Upload \"%s/%s\"."), sink->config.bucket, sink->config.key),
+          GST_ERROR_SYSTEM);
+      gst_event_unref (event);
+      return FALSE;
+    }
 }
 
 static GstFlowReturn
@@ -545,10 +660,11 @@ gst_s3_sink_flush_buffer (GstS3Sink * sink)
 {
   gboolean ret = TRUE;
 
-  if (sink->current_buffer_size) {
+  if (sink->buffer_size) {
+    GST_DEBUG_OBJECT(sink, "Uploading %ld byte part", sink->buffer_size);
     ret = gst_s3_uploader_upload_part (sink->uploader, sink->buffer,
-        sink->current_buffer_size);
-    sink->current_buffer_size = 0;
+        sink->buffer_size);
+    sink->buffer_pos = sink->buffer_size = 0;
   }
 
   return ret;
@@ -566,18 +682,20 @@ gst_s3_sink_fill_buffer (GstS3Sink * sink, GstBuffer * buffer)
 
   do {
     bytes_to_copy =
-        MIN (sink->config.buffer_size - sink->current_buffer_size,
+        MIN (sink->config.buffer_size - sink->buffer_pos,
         map_info.size - ptr);
-    memcpy (sink->buffer + sink->current_buffer_size, map_info.data + ptr,
+    memcpy (sink->buffer + sink->buffer_pos, map_info.data + ptr,
         bytes_to_copy);
-    sink->current_buffer_size += bytes_to_copy;
-    if (sink->current_buffer_size == sink->config.buffer_size) {
+    sink->buffer_pos += bytes_to_copy;
+    sink->buffer_size = MAX(sink->buffer_pos, sink->buffer_size);
+    if (sink->buffer_pos == sink->config.buffer_size) {
       if (!gst_s3_sink_flush_buffer (sink)) {
         return FALSE;
       }
     }
     ptr += bytes_to_copy;
-    sink->total_bytes_written += bytes_to_copy;
+    sink->current_pos += bytes_to_copy;
+    sink->upload_size = MAX(sink->upload_size, sink->current_pos);
   } while (ptr < map_info.size);
 
   gst_buffer_unmap (buffer, &map_info);
@@ -587,6 +705,181 @@ map_failed:
   {
     GST_ELEMENT_ERROR (sink, RESOURCE, NOT_FOUND,
         ("Failed to map the buffer."), (NULL));
+    return FALSE;
+  }
+}
+
+static gboolean
+gst_s3_sink_do_flush (GstS3Sink * sink)
+{
+  gsize bytes_remaining;
+  gboolean ret = TRUE;
+
+  if (sink->uploader && sink->buffer) {
+    GST_DEBUG_OBJECT (sink, "Flushing S3 Upload");
+
+    // Set current position to end of data in current buffer
+    const gsize buffer_start = sink->current_pos - sink->buffer_pos;
+    sink->buffer_pos = sink->buffer_size;
+    sink->current_pos = buffer_start + sink->buffer_pos;
+
+    if (sink->buffer_size != sink->config.buffer_size &&
+        sink->current_pos < sink->upload_size) {
+
+      const gsize bytes_to_read = MIN(sink->config.buffer_size - sink->buffer_size, sink->upload_size - sink->current_pos);
+      GST_TRACE_OBJECT(sink, "Post-filling %ld bytes, range: %ld-%ld", bytes_to_read, sink->current_pos,
+      sink->current_pos + bytes_to_read);
+
+      const gsize bytes_read = gst_s3_downloader_download_part(
+        sink->downloader,
+        sink->buffer + sink->buffer_pos,
+        sink->current_pos,
+        sink->current_pos + bytes_to_read);
+
+      sink->buffer_size += bytes_read;
+      sink->buffer_pos += bytes_read;
+      sink->current_pos += bytes_read;
+
+      if (bytes_to_read != bytes_read) {
+        GST_WARNING_OBJECT(sink, "Failed to post-fill %ld bytes, only read %ld", bytes_to_read, bytes_read);
+      }
+    }
+
+    gst_s3_sink_flush_buffer (sink);
+
+    bytes_remaining = sink->upload_size - sink->current_pos;
+    if (bytes_remaining) {
+      if (bytes_remaining < sink->config.buffer_size) {
+        GST_TRACE_OBJECT(sink, "Re-uploading remaining file from %ld to %ld", sink->current_pos, sink->upload_size);
+        const gsize bytes_read = gst_s3_downloader_download_part(
+          sink->downloader,
+          sink->buffer + sink->buffer_pos,
+          sink->current_pos,
+          sink->upload_size);
+
+        sink->buffer_size += bytes_read;
+        sink->buffer_pos += bytes_read;
+        sink->current_pos += bytes_read;
+
+        if (bytes_remaining != bytes_read) {
+          GST_WARNING_OBJECT(sink, "Failed to re-upload %ld bytes, only read %ld", bytes_remaining, bytes_read);
+        }
+
+        gst_s3_sink_flush_buffer (sink);
+      } else {
+        GST_TRACE_OBJECT(sink, "Copy-uploading remaining file from %ld to %ld", sink->current_pos, sink->upload_size);
+        gst_s3_uploader_upload_part_copy(
+          sink->uploader,
+          sink->config.bucket,
+          sink->config.key,
+          sink->current_pos,
+          sink->upload_size - 1
+        );
+      }
+    }
+
+    ret = gst_s3_uploader_complete (sink->uploader);
+
+    sink->current_pos = sink->upload_size;
+  }
+
+  gst_s3_destroy_uploader (sink);
+
+  return ret;
+}
+
+static gboolean
+gst_s3_sink_do_seek (GstS3Sink * sink, guint64 new_offset)
+{
+  gsize bytes_to_zero;
+
+  GST_DEBUG_OBJECT(sink, "Seeking to new offset %" G_GUINT64_FORMAT " from %"
+      G_GUINT64_FORMAT " of %" G_GUINT64_FORMAT " total bytes", new_offset,
+      sink->current_pos, sink->upload_size);
+
+  const gsize buffer_start = sink->current_pos - sink->buffer_pos;
+  const gsize buffer_end = buffer_start + sink->config.buffer_size;
+  if (new_offset >= buffer_start && new_offset < buffer_end) {
+      GST_TRACE_OBJECT (sink, "Seeking to offset %" G_GUINT64_FORMAT
+          " which is within current buffer", new_offset);
+
+    sink->current_pos = MIN(buffer_start + sink->buffer_size, new_offset);
+    sink->buffer_pos = sink->current_pos - buffer_start;
+  }
+  else if (sink->current_pos != sink->upload_size || new_offset < sink->current_pos) {
+    gsize new_pos;
+
+    if (!gst_s3_sink_do_flush(sink))
+      goto flush_failed;
+
+    sink->uploader = gst_s3_multipart_uploader_new (&sink->config);
+
+    new_pos = MIN(new_offset, sink->upload_size);
+    if (new_pos >= sink->config.buffer_size) {
+      gboolean res;
+
+      GST_TRACE_OBJECT (sink, "Seeking to offset %" G_GUINT64_FORMAT
+          " using multipart upload copy", new_offset);
+      res = gst_s3_uploader_upload_part_copy(
+        sink->uploader,
+        sink->config.bucket,
+        sink->config.key,
+        0,
+        new_pos - 1
+      );
+
+      if (!res) {
+        goto upload_copy_failed;
+      }
+
+      sink->current_pos = new_pos;
+    }
+    else if (new_pos > 0) {
+      GST_TRACE_OBJECT (sink, "Seeking to offset %" G_GUINT64_FORMAT
+          " by downloading", new_offset);
+
+      const gsize bytes_read = gst_s3_downloader_download_part(
+        sink->downloader,
+        sink->buffer,
+        0,
+        new_pos);
+
+      sink->current_pos = sink->buffer_size = sink->buffer_pos = bytes_read;
+
+      if (bytes_read != new_pos) {
+        GST_WARNING_OBJECT(sink, "Failed to preload %ld bytes, only read %ld", new_pos, bytes_read);
+      }
+    }
+  }
+
+  while (sink->current_pos < new_offset)
+  {
+    bytes_to_zero =
+        MIN(sink->config.buffer_size - sink->buffer_size,
+        new_offset - sink->current_pos);
+    memset(sink->buffer + sink->buffer_pos, 0, bytes_to_zero);
+    sink->buffer_size += bytes_to_zero;
+    sink->buffer_pos += bytes_to_zero;
+    if (sink->buffer_size == sink->config.buffer_size) {
+      if (!gst_s3_sink_flush_buffer (sink)) {
+        return FALSE;
+      }
+    }
+    sink->current_pos += bytes_to_zero;
+    sink->upload_size = MAX(sink->upload_size, sink->current_pos);
+  }
+
+  return TRUE;
+
+  /* ERRORS */
+flush_failed:
+  {
+    GST_ERROR_OBJECT (sink, "Flush failed");
+    return FALSE;
+  }
+upload_copy_failed:
+  {
+    GST_ERROR_OBJECT (sink, "Upload copy failed");
     return FALSE;
   }
 }
