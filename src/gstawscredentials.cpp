@@ -17,11 +17,7 @@
  * Boston, MA 02110-1301, USA.
  */
 #include "gstawscredentials.hpp"
-
 #include "gstawsutils.hpp"
-
-#include <gst/gst.h>
-
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
 #include <aws/sts/model/AssumeRoleRequest.h>
 #include <aws/sts/STSClient.h>
