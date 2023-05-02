@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Install GStreamer (Linux)
         if: runner.os == 'Linux'
-        uses: blinemedical/setup-gstreamer@main
+        uses: blinemedical/setup-gstreamer@VIDEO-2195-update-for-ubuntu-22.04
         with:
           version: '1.22.2'
       - name: Install dependencies (Ubuntu)
