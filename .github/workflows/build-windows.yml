@@ -55,5 +55,5 @@ jobs:
 
       - name: Compile
         run: |
-          meson setup --vsenv --buildtype debug --pkg-config-path C:/aws-cpp-sdk-all/lib/pkgconfig" builddir
+          meson setup --vsenv --buildtype debug --pkg-config-path C:/aws-cpp-sdk-all/lib/pkgconfig builddir
           meson compile -C builddir
