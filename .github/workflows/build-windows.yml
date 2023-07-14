@@ -1,10 +1,10 @@
 name: Laerdal Labs, DC GStreamer Plugin Windows Build
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
