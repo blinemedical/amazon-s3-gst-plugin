@@ -57,10 +57,15 @@ jobs:
           submodules: recursive
           path: ./aws-sdk-cpp
       
-      - name: Clone and Build bline/aws-sdk-cpp
+      - name: Build bline/aws-sdk-cpp
         run: | 
           cd D:\a\amazon-s3-gst-plugin\amazon-s3-gst-plugin\aws-sdk-cpp
-          cmake  -S . -B build -G "Visual Studio 17 2022" -DBUILD_ONLY="s3;sts" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=C:/aws-cpp-sdk-all aws-sdk-cpp
+          cmake  -S . -B build -G "Visual Studio 17 2022" -DBUILD_ONLY="s3;sts" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=C:/aws-cpp-sdk-all
           cmake --build build -j --config Debug
           cmake --install build --config Debug
+
+      - name: Build Amazon-S3 Plugin
+        run: |
+          meson setup --vsenv --buildtype debug --pkg-config-path C:/aws-cpp-sdk-all/lib/pkgconfig build
+          meson compile -C build
         
