@@ -58,7 +58,7 @@ jobs:
       
       - name: Clone and Build bline/aws-sdk-cpp
         run: | 
-          cd aws-sdk-cpp
+          cd D:\a\amazon-s3-gst-plugin\amazon-s3-gst-plugin\aws-sdk-cpp
           cmake  -S . -B build -G "Visual Studio 17 2022" -DBUILD_ONLY="s3;sts" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=C:/aws-cpp-sdk-all aws-sdk-cpp
           cmake --build build -j --config Debug
           cmake --install build --config Debug
