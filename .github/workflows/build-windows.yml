@@ -48,3 +48,4 @@ jobs:
       - name: Clone and Build bline/aws-sdk-cpp
         run: | 
           'git clone --recurse-submodules --depth 1 https://github.com/blinemedical/aws-sdk-cpp.git'
+          cd ${{ github.workspace }}\aws-sdk-cpp
