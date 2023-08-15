@@ -74,6 +74,7 @@ enum
   PROP_BUFFER_SIZE,
   PROP_INIT_AWS_SDK,
   PROP_CREDENTIALS,
+  PROP_CREDENTIALS_STRING,
   PROP_AWS_SDK_ENDPOINT,
   PROP_AWS_SDK_USE_HTTP,
   PROP_AWS_SDK_VERIFY_SSL,
@@ -220,6 +221,11 @@ gst_s3_sink_class_init (GstS3SinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_CREDENTIALS,
     g_param_spec_boxed ("aws-credentials", "AWS credentials",
       "The AWS credentials to use", GST_TYPE_AWS_CREDENTIALS,
+      G_PARAM_WRITABLE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
+  
+  g_object_class_install_property (gobject_class, PROP_CREDENTIALS_STRING,
+    g_param_spec_string("aws-credentials-string", "AWS credentials",
+      "The AWS credentials to use", NULL,
       G_PARAM_WRITABLE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_AWS_SDK_ENDPOINT,
@@ -417,6 +423,11 @@ gst_s3_sink_set_property (GObject * object, guint prop_id,
       if (sink->config.credentials)
         gst_aws_credentials_free (sink->config.credentials);
       sink->config.credentials = gst_aws_credentials_copy (g_value_get_boxed (value));
+      break;
+    case PROP_CREDENTIALS_STRING:
+      if (sink->config.credentials)
+        gst_aws_credentials_free (sink->config.credentials);
+      sink->config.credentials = gst_aws_credentials_new_from_string(g_value_get_string (value));
       break;
     case PROP_AWS_SDK_ENDPOINT:
       gst_s3_sink_set_string_property (sink, g_value_get_string (value),

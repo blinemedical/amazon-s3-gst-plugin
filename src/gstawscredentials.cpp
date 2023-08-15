@@ -70,6 +70,13 @@ gst_aws_credentials_free (GstAWSCredentials * credentials)
   delete credentials;
 }
 
+GstAWSCredentials *
+gst_aws_credentials_new_from_string(const gchar * str)
+{
+  return _gst_aws_credentials_from_string (str);
+}
+
+
 static bool
 strings_equal(const gchar* str1, const gchar* str2, size_t len2)
 {
