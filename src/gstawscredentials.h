@@ -43,11 +43,11 @@ GType gst_aws_credentials_get_type (void);
 GST_EXPORT
 GstAWSCredentials * gst_aws_credentials_new_from_string(const gchar * str);
 
-static GstAWSCredentials * _gst_aws_credentials_from_string (const gchar * str);
-
 #define GST_TYPE_AWS_CREDENTIALS \
   (gst_aws_credentials_get_type())
 
 G_END_DECLS
+
+static GstAWSCredentials * _gst_aws_credentials_from_string (const gchar * str);
 
 #endif /* __GST_AWS_CREDENTIALS_H__ */
