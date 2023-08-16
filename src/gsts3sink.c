@@ -224,8 +224,8 @@ gst_s3_sink_class_init (GstS3SinkClass * klass)
       G_PARAM_WRITABLE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
   
   g_object_class_install_property (gobject_class, PROP_CREDENTIALS_STRING,
-    g_param_spec_string("aws-credentials-string", "AWS credentials",
-      "The AWS credentials to use", NULL,
+    g_param_spec_string("aws-credentials-string", "AWS credentials (string)",
+      "The AWS credentials to use parsed from string", NULL,
       G_PARAM_WRITABLE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_AWS_SDK_ENDPOINT,
@@ -521,6 +521,9 @@ gst_s3_sink_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_NUM_CACHE_PARTS:
       g_value_set_int (value, sink->config.cache_num_parts);
+      break;
+    case PROP_CREDENTIALS_STRING:
+    //  g_value_set_string (value, sink->config.region);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
