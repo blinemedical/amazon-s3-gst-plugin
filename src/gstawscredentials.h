@@ -48,6 +48,4 @@ GstAWSCredentials * gst_aws_credentials_new_from_string(const gchar * str);
 
 G_END_DECLS
 
-static GstAWSCredentials * _gst_aws_credentials_from_string (const gchar * str);
-
 #endif /* __GST_AWS_CREDENTIALS_H__ */

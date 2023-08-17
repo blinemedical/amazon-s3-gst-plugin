@@ -81,6 +81,8 @@ struct _GstS3Sink {
   // doing any download/copy-upload -like operations
   // that would require the uploader to 'complete'
   gboolean uploader_needs_complete;
+
+  gchar * credentials_string;
 };
 
 struct _GstS3SinkClass {

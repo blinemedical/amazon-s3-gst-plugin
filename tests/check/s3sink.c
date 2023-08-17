@@ -89,16 +89,22 @@ GST_END_TEST
 GST_START_TEST (test_credentials_property)
 {
   GstElement *sink = gst_element_factory_make ("s3sink", "sink");
-  GstAWSCredentials *credentials = gst_aws_credentials_from_string ("access-key-id=someAccessKey|secret-access-key=someAccessSecret");
+  const gchar *location = "s3://bucket/key";
+
+  gchar *returned_credentials = NULL;
+  gchar * credentialstr = "access-key-id=someAccessKey";
 
   fail_if (sink == NULL);
 
+  // Set location, then set bucket and key, verify location is used
+  g_object_set (sink, "aws-credentials-string", "access-key-id=someAccessKey", NULL);
   g_object_set (sink,
-    "aws-credentials",
-    credentials,
+    "bucket", "new-bucket",
+    "key", "new-key",
     NULL);
-
-  gst_aws_credentials_free (credentials);
+  g_object_get (sink, "aws-credentials-string", &returned_credentials, NULL);
+  fail_if (0 != g_ascii_strcasecmp("access-key-id=someAccessKey", returned_credentials));
+  g_free (returned_credentials);
 
   gst_object_unref (sink);
 }

@@ -29,6 +29,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_aws_credentials_debug);
 
 using namespace Aws::Auth;
 
+static GstAWSCredentials * _gst_aws_credentials_from_string (const gchar * str);
+
 struct _GstAWSCredentials {
   _GstAWSCredentials(GstAWSCredentialsProviderFactory factory) :
     credentials_provider_factory(std::move(factory))
@@ -71,9 +73,10 @@ gst_aws_credentials_free (GstAWSCredentials * credentials)
 }
 
 GstAWSCredentials *
-gst_aws_credentials_new_from_string(const gchar * str)
+gst_aws_credentials_new_from_string(const gchar * s)
 {
-  return _gst_aws_credentials_from_string (str);
+ // gst_aws_credentials_new_default();
+  return _gst_aws_credentials_from_string (s);
 }
 
 
