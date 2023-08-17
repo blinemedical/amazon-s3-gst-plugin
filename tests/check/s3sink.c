@@ -86,6 +86,30 @@ GST_START_TEST (test_location_property)
 }
 GST_END_TEST
 
+GST_START_TEST (test_credentials_property)
+{
+  GstElement *sink = gst_element_factory_make ("s3sink", "sink");
+  const gchar *location = "s3://bucket/key";
+
+  gchar *returned_credentials = NULL;
+  gchar * credentialstr = "access-key-id=someAccessKey";
+
+  fail_if (sink == NULL);
+
+  // Set location, then set bucket and key, verify location is used
+  g_object_set (sink, "aws-credentials-string", "access-key-id=someAccessKey", NULL);
+  g_object_set (sink,
+    "bucket", "new-bucket",
+    "key", "new-key",
+    NULL);
+  g_object_get (sink, "aws-credentials-string", &returned_credentials, NULL);
+  fail_if (0 != g_ascii_strcasecmp("access-key-id=someAccessKey", returned_credentials));
+  g_free (returned_credentials);
+
+  gst_object_unref (sink);
+}
+GST_END_TEST
+
 GST_START_TEST (test_gst_urihandler_interface)
 {
   GstElement *s3Sink = gst_element_make_from_uri(GST_URI_SINK, "s3://bucket/key", "s3sink", NULL);
@@ -821,6 +845,7 @@ s3sink_suite (void)
   suite_add_tcase (s, tc_chain);
   tcase_add_test (tc_chain, test_no_bucket_and_key_then_start_should_fail);
   tcase_add_test (tc_chain, test_location_property);
+  tcase_add_test (tc_chain, test_credentials_property);
   tcase_add_test (tc_chain, test_gst_urihandler_interface);
   tcase_add_test (tc_chain, test_change_properties_after_start_should_fail);
   tcase_add_test (tc_chain, test_send_eos_should_flush_buffer);

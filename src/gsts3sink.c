@@ -226,7 +226,7 @@ gst_s3_sink_class_init (GstS3SinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_CREDENTIALS_STRING,
     g_param_spec_string("aws-credentials-string", "AWS credentials (string)",
       "The AWS credentials to use parsed from string", NULL,
-      G_PARAM_WRITABLE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
+      G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_AWS_SDK_ENDPOINT,
     g_param_spec_string ("aws-sdk-endpoint", "AWS SDK Endpoint",
@@ -427,7 +427,8 @@ gst_s3_sink_set_property (GObject * object, guint prop_id,
     case PROP_CREDENTIALS_STRING:
       if (sink->config.credentials)
         gst_aws_credentials_free (sink->config.credentials);
-      sink->config.credentials = gst_aws_credentials_new_from_string(g_value_get_string (value));
+      gst_s3_sink_set_string_property (sink, g_value_get_string (value), &sink->credentials_string, "aws-credentials-string");
+      sink->config.credentials = gst_aws_credentials_new_from_string(sink->credentials_string);
       break;
     case PROP_AWS_SDK_ENDPOINT:
       gst_s3_sink_set_string_property (sink, g_value_get_string (value),
@@ -523,7 +524,7 @@ gst_s3_sink_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_int (value, sink->config.cache_num_parts);
       break;
     case PROP_CREDENTIALS_STRING:
-    //  g_value_set_string (value, sink->config.region);
+      g_value_set_string (value, sink->credentials_string);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
