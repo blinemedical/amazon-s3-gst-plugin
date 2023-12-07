@@ -12,6 +12,10 @@ jobs:
   build-package:
     name: Build Windows Nuget Package
     runs-on: windows-2022
+    env:
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_DEFAULT_TRIPLET: "x64-windows"
+      VCPKG_DOWNLOADS: "${{ github.workspace }}/.vcpkg/downloads"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -37,10 +41,16 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
+      - name: Cache vcpkg downloads
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.VCPKG_DOWNLOADS }}
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
       - name: Install AWS C++ SDK
         run: |
-          vcpkg install aws-sdk-cpp[s3,sts] --binarysource="clear;x-gha,readwrite" --triplet x64-windows
-          echo "CMAKE_PREFIX_PATH=$Env:VCPKG_INSTALLATION_ROOT\installed\x64-windows" | Out-File -FilePath $Env:GITHUB_ENV -Append -Encoding utf8
+          vcpkg install aws-sdk-cpp[s3,sts]
+          echo "CMAKE_PREFIX_PATH=$Env:VCPKG_INSTALLATION_ROOT\installed\$Env:VCPKG_DEFAULT_TRIPLET" | Out-File -FilePath $Env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build Amazon-S3 Plugin
         id: build_plugin
