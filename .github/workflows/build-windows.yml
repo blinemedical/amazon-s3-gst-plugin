@@ -45,7 +45,12 @@ jobs:
       - name: Build Amazon-S3 Plugin
         id: build_plugin
         run: |
-          meson setup --vsenv build
+          # Debug build
+          meson setup --vsenv --buildtype debug build-debug
+          meson compile -C build-debug
+
+          # Release build
+          meson setup --vsenv --buildtype debugoptimized build
           echo "plugin_version=$((meson introspect --projectinfo build | ConvertFrom-Json).version)" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
           meson compile -C build
 
