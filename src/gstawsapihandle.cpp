@@ -93,6 +93,7 @@ private:
 using gst::aws::AwsApiHandle;
 
 AwsApiHandle::AwsApiHandle() {
+    GST_CAT_DEBUG (gst_aws_s3_debug, "Initializing AWS API");
     ::Aws::Utils::Logging::InitializeAWSLogging(::std::make_shared<Logger>());
     ::Aws::SDKOptions options;
     ::Aws::InitAPI(options);
@@ -108,6 +109,9 @@ AwsApiHandle::~AwsApiHandle()
 ::std::shared_ptr<AwsApiHandle> AwsApiHandle::GetHandle()
 {
     static ::std::weak_ptr<AwsApiHandle> instance;
+    static ::std::mutex mutex;
+
+    const ::std::lock_guard<::std::mutex> lock(mutex);
     if (auto ptr = instance.lock()) {
         return ptr;
     }

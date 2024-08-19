@@ -14,24 +14,40 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install meson/ninja
         run: pip install meson ninja
 
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.DEV_AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DEV_AWS_KEY_SECRET }}
+          aws-region: 'us-east-1'
+
+      - id: get-gstreamer
+        name: Get GStreamer
+        uses: blinemedical/cerbero/.github/actions/build-gstreamer-for-windows@1.24-lldc
+        with:
+          cerbero-ref: 1.24.5-lldc.2
+          cerbero-args: --clocktime --timestamps -v visualstudio,noasserts
+          s3-download-paths: ${{ vars.GSTREAMER_S3_DOWNLOAD_PATH }}
+
       - name: Install GStreamer
         id: setup_gstreamer
         uses: blinemedical/setup-gstreamer@v1
         with:
-          version: '1.24.1'
-          arch: 'x86_64'
+          version: ${{ steps.get-gstreamer.outputs.gstreamer-version }}
+          msiUrl: ${{ steps.get-gstreamer.outputs.runtime-installer-url }}
+          devMsiUrl: ${{ steps.get-gstreamer.outputs.devel-installer-url }}
 
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -45,12 +61,17 @@ jobs:
       - name: Build Amazon-S3 Plugin
         id: build_plugin
         run: |
-          meson setup --vsenv build
+          # Debug build
+          meson setup --vsenv --buildtype debug build-debug
+          meson compile -C build-debug
+
+          # Release build
+          meson setup --vsenv --buildtype debugoptimized build
           echo "plugin_version=$((meson introspect --projectinfo build | ConvertFrom-Json).version)" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
           meson compile -C build
 
       - name: Setup NuGet
-        uses: NuGet/setup-nuget@v1
+        uses: NuGet/setup-nuget@v2
 
       - name: Generate NuGet packages
         run: |
@@ -65,7 +86,7 @@ jobs:
             nuget.exe pack Amazon-S3-Plugin.nuspec -Version $version -OutputDirectory nupkgs
 
       - name: Upload NuGet packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nuget-packages
           path: 'nupkgs/*.nupkg'

@@ -11,10 +11,18 @@
         <file src="src\gstawscredentials.h" target="build\native\include" />
         <file src="src\gstawscredentials.hpp" target="build\native\include" />
         <file src="src\gsts3uploaderpartcache.hpp" target="build\native\include" />
-        <file src="build\src\gstawscredentials-1.0.lib" target="build\native\lib" />
-        <file src="build\src\gsts3elements.lib" target="build\native\lib" />
-        <file src="build\src\gstawscredentials-1.0.dll" target="runtimes\native" />
-        <file src="build\src\gsts3elements.dll" target="runtimes\native" />
+        <file src="build\src\gstawscredentials-1.0.lib" target="build\native\x64" />
+        <file src="build\src\gstawscredentials-1.0.dll" target="build\native\x64" />
+        <file src="build\src\gstawscredentials-1.0.pdb" target="build\native\x64" />
+        <file src="build\src\gsts3elements.lib" target="build\native\x64" />
+        <file src="build\src\gsts3elements.dll" target="build\native\x64" />
+        <file src="build\src\gsts3elements.pdb" target="build\native\x64" />
+        <file src="build-debug\src\gstawscredentials-1.0.lib" target="build\native\debug\x64" />
+        <file src="build-debug\src\gstawscredentials-1.0.dll" target="build\native\debug\x64" />
+        <file src="build-debug\src\gstawscredentials-1.0.pdb" target="build\native\debug\x64" />
+        <file src="build-debug\src\gsts3elements.lib" target="build\native\debug\x64" />
+        <file src="build-debug\src\gsts3elements.dll" target="build\native\debug\x64" />
+        <file src="build-debug\src\gsts3elements.pdb" target="build\native\debug\x64" />
         <file src="Amazon-S3-Plugin.targets" target="build" />
     </files>
 </package>
