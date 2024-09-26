@@ -35,7 +35,7 @@ jobs:
         name: Get GStreamer
         uses: blinemedical/cerbero/.github/actions/build-gstreamer-for-windows@1.24-lldc
         with:
-          cerbero-ref: 1.24.5-lldc.2
+          cerbero-ref: 1.24.8-lldc
           cerbero-args: --clocktime --timestamps -v visualstudio,noasserts
           s3-download-paths: ${{ vars.GSTREAMER_S3_DOWNLOAD_PATH }}
 
