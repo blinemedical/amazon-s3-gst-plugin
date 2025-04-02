@@ -9,6 +9,10 @@ on:
   workflow_dispatch:
 
 jobs:
+  install-gstreamer:
+    name: Install GStreamer
+    uses: blinemedical/cerbero/.github/workflows/windows.yml@1.24-lldc-make-action-work-for-external-repo
+
   build-package:
     name: Build Windows Nuget Package
     runs-on: windows-2022
@@ -19,7 +23,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '>=3.10'
 
       - name: Install meson/ninja
         run: pip install meson ninja
@@ -31,21 +35,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.DEV_AWS_KEY_SECRET }}
           aws-region: 'us-east-1'
 
-      - id: get-gstreamer
-        name: Get GStreamer
-        uses: blinemedical/cerbero/.github/actions/build-gstreamer-for-windows@1.24-lldc
+      - name: Upload install logs
+        uses: actions/upload-artifact@v4
         with:
-          cerbero-ref: 1.24.8-lldc.2
-          cerbero-args: --clocktime --timestamps -v visualstudio,noasserts
-          s3-download-paths: ${{ vars.GSTREAMER_S3_DOWNLOAD_PATH }}
-
-      - name: Install GStreamer
-        id: setup_gstreamer
-        uses: blinemedical/setup-gstreamer@v1
-        with:
-          version: ${{ steps.get-gstreamer.outputs.gstreamer-version }}
-          msiUrl: ${{ steps.get-gstreamer.outputs.runtime-installer-url }}
-          devMsiUrl: ${{ steps.get-gstreamer.outputs.devel-installer-url }}
+          name: gstreamer-install-log
+          path: '*.log'
 
       - uses: actions/github-script@v7
         with:
